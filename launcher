@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+COUNT=${COUNT-2}
+
+shutdown()
+{
+    echo "Shutting down"
+    for pidfile in $(find /tmp -maxdepth 1 -mindepth 1 -name "iperf_pid_*" -type f); do
+        kill $(tr -d '\0' <${pidfile})
+        rm -f ${pidfile}
+    done
+}
+
+trap shutdown SIGHUP SIGINT SIGTERM
+
+# Start iperf processes
+for idx in $(seq 0 $(( COUNT - 1)) ); do
+    iperf3 --server --port $(( 5201 + ${idx} )) --daemon \
+        --pidfile /tmp/iperf_pid_$(( 5201 + ${idx} )) \
+        --logfile /tmp/iperf_log_$(( 5201 + ${idx} ))
+done
+
+# Tail the logs until iperf processes stop
+for pidfile in $(find /tmp -maxdepth 1 -mindepth 1 -name "iperf_pid_*" -type f); do
+    tail --pid=$(tr -d '\0' <${pidfile}) -f /tmp/iperf_log_* &
+    wait %1
+done
